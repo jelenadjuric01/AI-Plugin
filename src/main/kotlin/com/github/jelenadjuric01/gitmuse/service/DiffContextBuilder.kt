@@ -109,16 +109,27 @@ class DiffContextBuilder(private val project: Project) {
         }
 
     companion object {
-        // Best-effort secret-shape detector. Captures key + delimiter as group 1 so the
-        // replacement preserves whatever leading context (unified-diff `+`/`-` prefix,
-        // YAML indentation, etc.) was on the line.
-        private val SECRET_PATTERN = Regex(
-            """((?i)(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth(?:orization)?[_-]?token|client[_-]?secret|password|secret|token|bearer)\s*[:=]\s*)['"]?[^\s'"]+""",
-            RegexOption.MULTILINE,
+        // Two best-effort detectors, applied in sequence. Group 1 in each preserves the
+        // surrounding context (diff `+`/`-` prefix, YAML indentation, ...) so the
+        // replacement only swaps the value.
+        private val SECRET_PATTERNS: List<Regex> = listOf(
+            // 1) `keyword: value`  /  `keyword=value` — most config-file shapes.
+            Regex(
+                """((?i)(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth(?:orization)?[_-]?token|client[_-]?secret|password|secret|token)\s*[:=]\s*)['"]?[^\s'"]+""",
+                RegexOption.MULTILINE,
+            ),
+            // 2) `Authorization: Bearer <token>` — HTTP auth header form. Distinct shape
+            //    because the secret follows a *second* keyword (Bearer/Basic), not the colon.
+            Regex(
+                """((?i)authorization\s*:\s*(?:bearer|basic)\s+)['"]?[^\s'"]+""",
+                RegexOption.MULTILINE,
+            ),
         )
 
         /** Public for unit testing — replaces secret-shaped values with `***REDACTED***`. */
         internal fun redactSecrets(text: String): String =
-            SECRET_PATTERN.replace(text) { match -> "${match.groupValues[1]}***REDACTED***" }
+            SECRET_PATTERNS.fold(text) { acc, pattern ->
+                pattern.replace(acc) { match -> "${match.groupValues[1]}***REDACTED***" }
+            }
     }
 }

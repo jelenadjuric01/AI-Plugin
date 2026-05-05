@@ -61,13 +61,6 @@ class CommitMessageService(private val project: Project) {
     }
 
     /**
-     * Test entry point — orchestration without IDE service lookups. Tests pass a
-     * fake [LlmClient] and a hardcoded diff string; no [Project] needed.
-     */
-    fun generateWith(client: LlmClient, diff: String, branch: String?): Result<GenerationResult> =
-        client.generate(Prompt.build(diff, branch))
-
-    /**
      * v1 returns null. Reading the current Git branch requires the Git4Idea plugin and a
      * `dynamic` dependency in plugin.xml — out of scope for the test task. The model
      * produces good messages from the diff alone; branch context is a nice-to-have, not load-bearing.
@@ -75,4 +68,13 @@ class CommitMessageService(private val project: Project) {
     private fun currentBranch(): String? = null
 
     private fun <T> failure(error: LlmError): Result<T> = Result.failure(LlmException(error))
+
+    companion object {
+        /**
+         * Test entry point — orchestration without IDE service lookups. Tests pass a
+         * fake [LlmClient] and a hardcoded diff string; no [Project] needed.
+         */
+        fun generateWith(client: LlmClient, diff: String, branch: String?): Result<GenerationResult> =
+            client.generate(Prompt.build(diff, branch))
+    }
 }

@@ -1,19 +1,23 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <id>com.github.jelenadjuric01.aiplugin</id>
-    <name>AI-Plugin</name>
+    <id>com.github.jelenadjuric01.gitmuse</id>
+    <name>Git Muse</name>
     <vendor>jelenadjuric01</vendor>
     <description><![CDATA[
-        <p><b>AI-Plugin</b> is a repository that provides a pure template to make it easier to create a new plugin project.</p>
-        <p>The main goal of this template is to speed up the setup phase of plugin development for both new and experienced developers by preconfiguring the project scaffold and CI, linking to the proper documentation pages, and keeping everything organized.</p>
+        <p><b>Git Muse</b> generates Conventional Commits messages from your staged diff using an LLM.</p>
+        <p>Adds a button to the Commit dialog: click it, and a clear, format-correct commit message appears in the message field for you to review and edit before committing. Works with any OpenAI-compatible endpoint — OpenAI, Groq's free tier, a local Ollama server, OpenRouter, and others — configured in <i>Settings &rarr; Tools &rarr; Git Muse</i>.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.vcs</depends>
 
-    <resource-bundle>messages.MyBundle</resource-bundle>
+    <resource-bundle>messages.GitMuseBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.jelenadjuric01.aiplugin.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
-        <postStartupActivity implementation="com.github.jelenadjuric01.aiplugin.startup.MyProjectActivity" />
+        <!-- Extensions added in later phases: applicationService, applicationConfigurable, projectService, notificationGroup -->
     </extensions>
+
+    <actions>
+        <!-- Action added in Phase 5 -->
+    </actions>
 </idea-plugin>

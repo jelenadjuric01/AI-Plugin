@@ -1,13 +1,13 @@
-package com.github.jelenadjuric01.aiplugin
+package com.github.jelenadjuric01.gitmuse
 
 import com.intellij.DynamicBundle
 import org.jetbrains.annotations.NonNls
 import org.jetbrains.annotations.PropertyKey
 
 @NonNls
-private const val BUNDLE = "messages.MyBundle"
+private const val BUNDLE = "messages.GitMuseBundle"
 
-object MyBundle : DynamicBundle(BUNDLE) {
+object GitMuseBundle : DynamicBundle(BUNDLE) {
 
     operator fun get(@PropertyKey(resourceBundle = BUNDLE) key: String, vararg params: Any) =
         getMessage(key, *params)

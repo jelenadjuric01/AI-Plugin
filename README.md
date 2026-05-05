@@ -1,45 +1,47 @@
-# AI-Plugin
+# GitMuse
 
-![Build](https://github.com/jelenadjuric01/AI-Plugin/workflows/Build/badge.svg)
-[![Version](https://img.shields.io/jetbrains/plugin/v/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/MARKETPLACE_ID.svg)](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID)
+![Build](https://github.com/jelenadjuric01/GitMuse/workflows/Build/badge.svg)
 
-## Template ToDo list
-- [x] Create a new [IntelliJ Platform Plugin Template][template] project.
-- [ ] Get familiar with the [template documentation][template].
-- [ ] Adjust the [group](./gradle.properties), as well as the [id](./src/main/resources/META-INF/plugin.xml), [name](./src/main/resources/META-INF/plugin.xml), and [sources package](./src/main/kotlin).
-- [ ] Adjust the plugin [description](./src/main/resources/META-INF/plugin.xml) (see [Tips][docs:plugin-description]) and this README to describe what your plugin does.
-- [ ] Review the [Legal Agreements](https://plugins.jetbrains.com/docs/marketplace/legal-agreements.html?from=IJPluginTemplate).
-- [ ] [Publish a plugin manually](https://plugins.jetbrains.com/docs/intellij/publishing-plugin.html?from=IJPluginTemplate) for the first time.
-- [ ] Set the `MARKETPLACE_ID` in the above README badges. You can obtain it once the plugin is published to JetBrains Marketplace.
-- [ ] Set the [Plugin Signing](https://plugins.jetbrains.com/docs/intellij/plugin-signing.html?from=IJPluginTemplate) related [secrets](https://github.com/JetBrains/intellij-platform-plugin-template#environment-variables).
-- [ ] Set the [Deployment Token](https://plugins.jetbrains.com/docs/marketplace/plugin-upload.html?from=IJPluginTemplate).
-- [ ] Click the <kbd>Watch</kbd> button on the top of the [IntelliJ Platform Plugin Template][template] to be notified about releases containing new features and fixes.
+An IntelliJ plugin that generates [Conventional Commits](https://www.conventionalcommits.org/) messages from your staged diff using an LLM.
 
-This Fancy IntelliJ Platform Plugin is going to be your implementation of the brilliant ideas that you have.
+GitMuse adds a button to the IDE's Commit dialog. Click it and a clear, format-correct commit message appears in the message field for you to review and edit before committing. The plugin never commits for you, never fires unprompted, and never blocks the IDE while it waits for the model.
 
-## Installation
+## Quick start
 
-- Using the IDE built-in plugin system:
+1. Install the plugin (during development: `./gradlew runIde` opens a sandbox IDE with it pre-loaded).
+2. Open `Settings → Tools → Git Muse` and configure one of the following:
 
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "AI-Plugin"</kbd> >
-  <kbd>Install</kbd>
+   | Provider | `Base URL` | Example `Model` | API key |
+   | --- | --- | --- | --- |
+   | **Groq** (free tier — recommended) | `https://api.groq.com/openai/v1` | `llama-3.1-8b-instant` | [console.groq.com/keys](https://console.groq.com/keys) |
+   | **Ollama** (local, no key) | `http://localhost:11434/v1` | `llama3.1:8b` | leave blank |
+   | **OpenAI** | `https://api.openai.com/v1` | `gpt-4o-mini` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 
-- Using JetBrains Marketplace:
+   The API key is stored via IntelliJ's `PasswordSafe` — never in plaintext config.
+3. Make some changes, open the Commit dialog (`Cmd-K` / `Ctrl-K`), click the **Generate AI Commit Message** button in the message toolbar.
 
-  Go to [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID) and install it by clicking the <kbd>Install to ...</kbd> button in case your IDE is running.
+## How it works
 
-  You can also download the [latest release](https://plugins.jetbrains.com/plugin/MARKETPLACE_ID/versions) from JetBrains Marketplace and install it manually using
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
+When you click the button, GitMuse:
 
-- Manually:
+1. Reads the diff of your active changelist via IntelliJ's VCS APIs (skipping binaries, redacting obvious secrets, and capping total size).
+2. Wraps it in a chat-completion prompt that constrains the model to Conventional Commits format.
+3. Sends it to your configured `baseUrl` over HTTPS, off the EDT.
+4. Writes the response into the commit message field via `VcsDataKeys.COMMIT_MESSAGE_CONTROL` — never auto-committing.
 
-  Download the [latest release](https://github.com/jelenadjuric01/AI-Plugin/releases/latest) and install it manually using
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
+Errors (missing key, auth failure, network, no staged changes) are surfaced as IDE notifications, not modal dialogs.
 
+## Development
+
+```bash
+./gradlew runIde            # launch a sandbox IDE with the plugin loaded
+./gradlew test              # unit tests
+./gradlew check             # tests + verifications
+./gradlew verifyPlugin      # JetBrains Plugin Verifier
+./gradlew buildPlugin       # produce distributable .zip in build/distributions/
+```
+
+JDK 21 required.
 
 ---
-Plugin based on the [IntelliJ Platform Plugin Template][template].
-
-[template]: https://github.com/JetBrains/intellij-platform-plugin-template
-[docs:plugin-description]: https://plugins.jetbrains.com/docs/intellij/plugin-user-experience.html#plugin-description-and-presentation
+Plugin scaffolded from the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template).

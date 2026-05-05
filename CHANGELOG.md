@@ -1,6 +1,6 @@
 <!-- Keep a Changelog guide -> https://keepachangelog.com -->
 
-# AI-Plugin Changelog
+# GitMuse Changelog
 
 ## [Unreleased]
 ### Added

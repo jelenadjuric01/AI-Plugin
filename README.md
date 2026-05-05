@@ -133,7 +133,6 @@ These are the calls that shaped the plugin and aren't obvious from the code alon
 
 ### Plugin scope
 
-- **A commit-message generator, full stop.** The plugin does one thing well rather than several things adequately. No inline completion, no chat panel, no multi-step refactoring assistant. Keeping the scope tight makes the threading, error handling, and prompt design legible.
 - **The plugin never commits and never fires unprompted.** It only writes text into the commit message field; you always click Commit yourself. No background poller, no on-error trigger, no auto-suggest — a predictable side-effect surface.
 
 ### Provider strategy
@@ -206,7 +205,6 @@ A list of features worth picking up if the plugin grows beyond v1. None are load
 - **Cache by diff hash.** If the user clicks the button twice without changing anything, return the previous result. Saves tokens; needs a small in-memory `Map<String, GenerationResult>` keyed by SHA-256 of the diff.
 - **Real `BasePlatformTestCase` integration test for `DiffContextBuilder`.** Current tests cover pure logic (the redaction regex). A platform-fixture test that seeds an in-memory project with changes and asserts the rendered diff shape would catch IntelliJ-API regressions before users hit them.
 - **Internationalization.** All user-facing strings are currently hard-coded English. `GitMuseBundle` is wired up but empty. Moving the notification messages, settings labels, and action text into the bundle would let the plugin localize cleanly.
-- **Plugin Verifier in CI against multiple IDE versions.** Current CI runs `verifyPlugin` against the bundled IDE only. Configuring the verifier to test against the last three IDEA releases would catch breakage from upcoming platform deprecations earlier.
 
 ---
 

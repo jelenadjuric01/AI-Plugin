@@ -42,7 +42,7 @@ The implementation is phased — each phase ends at a green build and a clean co
 | 1 | Template cleanup, dependency wiring, project rename to GitMuse | done |
 | 2 | Settings page, persisted state, PasswordSafe-backed API key | done |
 | 3 | LLM client, prompt builder, error model | done |
-| 4 | Diff context builder, commit-message orchestration service | planned |
+| 4 | Diff context builder, commit-message orchestration service | done |
 | 5 | VCS toolbar action, notification group, plugin.xml wiring | planned |
 | 6 | Tests + final polish (verifyPlugin, README screenshots) | planned |
 
@@ -106,11 +106,14 @@ Every meaningful trade-off is recorded here so the choices are auditable. Where 
 - **Action `update()` disables itself when `VcsDataKeys.COMMIT_MESSAGE_CONTROL` is null.** Stops the action from showing up in irrelevant menus and from no-op'ing if invoked from a context where there's no commit message field to write into.
 - **No default keyboard shortcut.** Default shortcuts collide with user customizations and project-specific keymaps. Users can bind one in `Settings → Keymap`.
 
-### Diff handling (Phase 4 — planned)
+### Diff handling
 
 - **Diff captured from the active changelist via `ChangeListManager`.** Maps closely to `git status` "to-be-committed" set. v1 uses the default changelist's full set of changes — precise per-checkbox capture (via `CommitWorkflowHandler`) is more code, and the default-changelist version is correct for the common case.
 - **Binary files skipped.** Sending non-text bytes to a chat-completion endpoint is meaningless and burns tokens.
-- **Secret-pattern redaction.** Lines matching common secret regexes (`api_key=`, `password:`, `token:`, …) are replaced with redaction markers before the diff goes to the LLM. A best-effort safety net, not a guarantee — users with truly sensitive diffs should review before clicking the action.
+- **Diff is hand-rolled, not generated via IntelliJ's `IdeaTextPatchBuilder` / `UnifiedDiffWriter`.** Those classes exist (in `intellij.platform.vcs.impl.jar`) but aren't on the `intellijIdea("…")` compile classpath by default and need additional `bundledModule` wiring to use. The hand-rolled version emits standard `--- a/path` / `+++ b/path` headers, marks new/deleted with `/dev/null`, and dumps full before content (`-` prefix) and after content (`+` prefix). The trade-off: a 200-line file with a 5-line change becomes ~400 lines in the prompt instead of 5. Acceptable because (a) the truncation cap below contains the worst case, (b) the LLM handles before+after fine, and (c) the rendering is fully visible in our codebase to a reviewer. If token cost becomes a real problem, swap to the IntelliJ APIs by adding a `bundledModule("intellij.platform.vcs.impl")` line — the `DiffContextBuilder` is the only file that would change.
+- **Secret-pattern redaction.** Lines matching common secret regexes (`api_key=`, `password:`, `token:`, `Bearer …`, `client_secret=`, …) are replaced with `***REDACTED***` before the diff goes to the LLM. A best-effort safety net, not a guarantee — users with truly sensitive diffs should review before clicking the action.
+- **Read-action wrapping.** `DiffContextBuilder.build()` runs inside `ReadAction.compute { … }`. `ChangeListManager` accessors and content-revision reads coordinate with IntelliJ's read/write lock — not wrapping risks `ReadAccessNotAllowed` exceptions on certain code paths.
+- **`currentBranch()` returns null in v1.** Reading the active Git branch requires Git4Idea APIs and a `dynamic` plugin dependency that's heavier than the marginal value (the LLM produces good messages from the diff alone). Marked as a future improvement in `CommitMessageService.kt`.
 
 ### Build & dependencies
 

@@ -21,7 +21,9 @@
             id="com.github.jelenadjuric01.gitmuse.settings"
             displayName="Git Muse"
             instance="com.github.jelenadjuric01.gitmuse.settings.GitMuseSettingsConfigurable"/>
-        <!-- Phase 4-5: projectService for CommitMessageService, notificationGroup -->
+        <projectService
+            serviceImplementation="com.github.jelenadjuric01.gitmuse.service.CommitMessageService"/>
+        <!-- Phase 5: notificationGroup -->
     </extensions>
 
     <actions>

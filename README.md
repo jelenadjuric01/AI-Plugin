@@ -4,151 +4,210 @@
 
 An IntelliJ plugin that generates [Conventional Commits](https://www.conventionalcommits.org/) messages from your staged diff using an LLM.
 
-GitMuse adds a button to the IDE's Commit dialog. Click it and a clear, format-correct commit message appears in the message field for you to review and edit before committing. The plugin never commits for you, never fires unprompted, and never blocks the IDE while it waits for the model.
+GitMuse adds a button to the IDE's Commit dialog. Click it, and a clear, format-correct commit message appears in the message field — for you to review, edit, and commit yourself. The plugin never commits for you, never fires unprompted, and never blocks the IDE while it waits for the model.
 
-This repository is a JetBrains test task — a small but well-structured plugin that exercises the full LLM loop (context capture, prompt engineering, structured output, error mapping, secure secret handling, off-EDT execution) without ballooning into a multi-provider chat platform.
+It's provider-agnostic: any endpoint that speaks the OpenAI `/v1/chat/completions` wire format works. That covers OpenAI, Groq's free tier, a local Ollama server, OpenRouter, Together, and most others. You bring the `baseUrl`, `model`, and (where required) the API key.
 
-## Quick start
+## Installation
 
-1. Install the plugin (during development: `./gradlew runIde` opens a sandbox IDE with it pre-loaded).
-2. Open `Settings → Tools → Git Muse` and configure one of the following:
+During local development:
 
-   | Provider | `Base URL` | Example `Model` | API key |
-   | --- | --- | --- | --- |
-   | **Groq** (free tier — recommended) | `https://api.groq.com/openai/v1` | `llama-3.1-8b-instant` | [console.groq.com/keys](https://console.groq.com/keys) |
-   | **Ollama** (local, no key) | `http://localhost:11434/v1` | `llama3.1:8b` | leave blank |
-   | **OpenAI** | `https://api.openai.com/v1` | `gpt-4o-mini` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+```bash
+./gradlew runIde
+```
 
-   The API key is stored via IntelliJ's `PasswordSafe` — never in plaintext config.
-3. Make some changes, open the Commit dialog (`Cmd-K` / `Ctrl-K`), click the **Generate AI Commit Message** button in the message toolbar.
+This launches a sandbox IDE with the plugin pre-loaded. Settings persist across restarts — your sandbox config lives at `.intellijPlatform/sandbox/GitMuse/<idea-version>/config/`.
+
+To produce a distributable `.zip`:
+
+```bash
+./gradlew buildPlugin
+# output: build/distributions/GitMuse-<version>.zip
+```
+
+Install via `Settings → Plugins → ⚙ → Install plugin from disk…` and point at the produced zip.
+
+## Configuration
+
+Open `Settings → Tools → Git Muse` and fill in three fields:
+
+| Provider | `Base URL` | Example `Model` | API key |
+| --- | --- | --- | --- |
+| **Groq** (free tier) | `https://api.groq.com/openai/v1` | `llama-3.1-8b-instant` | [console.groq.com/keys](https://console.groq.com/keys) |
+| **Ollama** (local, no key) | `http://localhost:11434/v1` | `llama3.1:8b` | leave blank |
+| **OpenAI** | `https://api.openai.com/v1` | `gpt-4o-mini` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+
+Two more knobs are available with sensible defaults:
+
+- `Max diff characters` — caps the diff size sent to the model. Default `12000` (~3000 tokens). Hard upper bound `50000` regardless of what you type.
+- `Request timeout (seconds)` — entire round-trip timeout. Default `30`.
+
+The API key is stored via IntelliJ's `PasswordSafe` (macOS Keychain / Windows Credential Manager / libsecret), never in plaintext config. The settings field opens empty on every visit — type a new value to set or replace, leave it blank to keep the existing one.
+
+## Usage
+
+1. Make some changes.
+2. Open the Commit dialog (`Cmd-K` / `Ctrl-K`).
+3. Click the **Generate AI Commit Message** lightning icon in the message toolbar.
+4. A background-task popup shows `Generating commit message`. The IDE stays interactive; press ESC on the popup to cancel.
+5. After 1–3 seconds, the commit message field fills in with something like:
+
+   ```
+   feat(auth): add OAuth2 refresh-token handling
+
+   Refreshes the access token automatically when it expires
+   instead of forcing the user to log in again.
+   ```
+
+6. Edit if needed, then **Commit** yourself. The plugin's job ends at step 5.
+
+Errors (missing key, auth failure, network, no staged changes, unconfigured base URL) surface as IDE notifications, not modal dialogs. Failures the user can fix in settings include a `Configure…` link that jumps straight to the page.
 
 ## How it works
 
-When you click the button, GitMuse:
+When you click the button, the plugin:
 
-1. Reads the diff of your active changelist via IntelliJ's VCS APIs (skipping binaries, redacting obvious secrets, and capping total size).
+1. Reads the diff of your active changelist via IntelliJ's VCS APIs (skipping binaries, redacting obvious secrets, capping total size).
 2. Wraps it in a chat-completion prompt that constrains the model to Conventional Commits format.
-3. Sends it to your configured `baseUrl` over HTTPS, off the EDT.
-4. Writes the response into the commit message field via `VcsDataKeys.COMMIT_MESSAGE_CONTROL` — never auto-committing.
+3. Sends it to your configured `baseUrl` over HTTPS, off the EDT, in a cancellable background task.
+4. Writes the response into the commit message field via `VcsDataKeys.COMMIT_MESSAGE_CONTROL`.
 
-Errors (missing key, auth failure, network, no staged changes) are surfaced as IDE notifications, not modal dialogs.
+The commit message field is the only place the plugin writes — it never invokes commit, push, or any other VCS action.
 
-## Implementation status
+## Project layout
 
-The implementation is phased — each phase ends at a green build and a clean commit. Detailed plan in [`PLAN.md`](PLAN.md).
+```
+src/main/kotlin/com/github/jelenadjuric01/gitmuse/
+├── action/
+│   └── GenerateCommitMessageAction.kt    AnAction registered in Vcs.MessageActionGroup
+├── llm/
+│   ├── ChatMessage.kt                    @Serializable role/content pair
+│   ├── ChatCompletionDtos.kt             internal request/response DTOs
+│   ├── GenerationResult.kt               success payload
+│   ├── LlmClient.kt                      single-method interface (test seam)
+│   ├── LlmError.kt                       sealed error variants + LlmException wrapper
+│   ├── OpenAiCompatibleClient.kt         JDK HttpClient impl
+│   └── Prompt.kt                         system prompt + builder
+├── service/
+│   ├── CommitMessageService.kt           @Service(PROJECT) orchestrator
+│   ├── DiffContext.kt                    sealed Empty/Present
+│   └── DiffContextBuilder.kt             ChangeListManager → unified diff, redact, truncate
+├── settings/
+│   ├── GitMuseSettings.kt                @Service(APP) PSC for baseUrl/model/limits
+│   ├── GitMuseSecrets.kt                 sole PasswordSafe wrapper
+│   ├── GitMuseSettingsComponent.kt       Swing form
+│   └── GitMuseSettingsConfigurable.kt    Configurable, wires component to state
+├── notification/
+│   └── Notifier.kt                       NotificationGroupManager wrapper
+└── GitMuseBundle.kt                      i18n bundle accessor
+```
 
-| Phase | Scope | Status |
-| --- | --- | --- |
-| 1 | Template cleanup, dependency wiring, project rename to GitMuse | done |
-| 2 | Settings page, persisted state, PasswordSafe-backed API key | done |
-| 3 | LLM client, prompt builder, error model | done |
-| 4 | Diff context builder, commit-message orchestration service | done |
-| 5 | VCS toolbar action, notification group, plugin.xml wiring | done |
-| 6 | Unit tests (40 passing) | done |
+40+ unit tests cover prompt building, the OpenAI client (happy path, 401/5xx, malformed JSON, body-snippet truncation, header normalization, no-secret-leakage), the orchestration seam, and secret-pattern redaction.
 
----
+## Building from source
 
-## Design decisions
-
-Every meaningful trade-off is recorded here so the choices are auditable. Where a decision rules out something obvious, the rationale spells out why.
-
-### Plugin scope
-
-- **A commit-message generator, not a motivational pop-up or a regex helper.** The task is graded on AI-tool fluency and code structure. Commit messages exercise prompt engineering (format constraints), structured output, real diff capture, and error categorization — all of which are weaker in alternatives I considered (motivational error messages, code explanation, regex builder).
-- **The plugin never commits and never fires unprompted.** It only writes text into the commit message field; the user always clicks Commit themselves. There is no background poller, no on-error trigger, no auto-suggest. A reviewer can confidently demo this without worrying about side effects.
-
-### Provider strategy
-
-- **Provider-agnostic via the OpenAI wire format.** OpenAI's `/v1/chat/completions` shape (`messages: [{role, content}]`, `choices[].message.content`, `Authorization: Bearer …`) became the de-facto industry standard. Groq, Ollama, OpenRouter, Together, Mistral, Cerebras, Anyscale, and many others all implement the same shape. One client class works against all of them — switch by changing `baseUrl`.
-- **Why the user chooses the model.** Different providers expose different model names: `gpt-4o-mini` (OpenAI), `llama-3.1-8b-instant` (Groq), `llama3.1:8b` (Ollama). Hard-coding any one of them constrains the user; pre-setting OpenAI's also implies a recommendation that bills the user. The settings field has helper text listing the three pairings, and the README ships three quick-start configs side by side.
-- **Why the user supplies the API key.** Plugin authors who ship a key risk leaking it (or paying for everyone's traffic). User-supplied keys also let people use providers I haven't heard of without code changes.
-- **No multi-provider factory with two real implementations.** All compatible endpoints share the same wire format; the abstraction lives at the `LlmClient` interface, not in a sprawling registry of provider classes. If a non-OpenAI-shaped provider matters later, a second `LlmClient` impl plus mapping is small and well-bounded — but adding one preemptively is ceremony for a test task.
-- **`baseUrl` is configurable, not fixed to OpenAI.** The whole point of the abstraction. Defaulting to OpenAI would be the only path that costs the user money out of the box; leaving it empty makes the choice deliberate.
-
-### Settings & secrets
-
-- **API key in `PasswordSafe`, never in `PersistentStateComponent`.** PSC serializes to plaintext XML in the IDE config dir. PasswordSafe writes to the OS keychain (macOS Keychain, Windows Credential Manager, libsecret/KWallet on Linux). All key access is funnelled through `GitMuseSecrets` — exactly one class touches the secret store, which makes audit and review trivial.
-- **Application-level service, not project-level.** The API key, base URL, and model are per-user, not per-project. A per-project setup would force re-entering the key in every checkout. There is nothing project-specific about which LLM you use.
-- **Password field always opens empty.** Pre-filling exposes the stored key visually; pre-filling with dots leaks its length. The chosen UX: type a value to set/replace, leave blank to keep the existing one. To clear, overwrite with a new key (or remove the entry via the system keychain UI). Adding a "Clear" button was considered and rejected as marginal UX value at the cost of more code surface.
-- **Default `maxDiffChars` = 12,000; hard cap = 50,000.** 12k characters is roughly 3k tokens — enough context for typical commits (a handful of files, a few hundred lines changed), short enough to stay cheap on every provider's pricing tier, and well under any model's context limit. The 50k hard cap protects against pathological cases (someone accidentally stages a 200k-line CSV) regardless of what the user types in the spinner. The user can lower the limit but cannot raise it past 50k.
-- **Default `requestTimeoutSeconds` = 30.** Generous enough for slow free-tier providers under load (Groq's free tier occasionally takes 10+ seconds during peaks); short enough that "stuck" requests get surfaced rather than hanging forever. Covers the entire request, not just the connect step.
-- **Wipes the typed `char[]` after `apply()`.** Standard hygiene: the password value would otherwise linger on the heap, where a heap dump or memory scanner could find it. Cheap to do, costs nothing to skip, but the test task is being read by JetBrains — they'll notice the missing line.
-
-### LLM client
-
-- **JDK 21 `java.net.http.HttpClient`, not OkHttp.** IntelliJ bundles its own OkHttp; pulling our own creates `NoSuchMethodError` risk on platform updates and complicates the dependency graph. The JDK client is sufficient for one endpoint, dependency-free, and ships with the JVM. This is a deliberate deviation from the original plan (which suggested OkHttp) — flagged in `PLAN.md` Q1.
-- **No explicit `kotlinx-coroutines-core` dependency.** IntelliJ Platform 2025.2 bundles coroutines; declaring our own pulls a version skew. The plugin uses `Task.Backgroundable` (no coroutines) anyway, so the question is moot.
-- **`Result<T>` return type, not throwing exceptions.** Forces callers to handle failures explicitly at the call site. The `LlmException` wrapper exists only because Kotlin's `Result.failure` requires a `Throwable` — internally we still pattern-match on the typed `LlmError`.
-- **`LlmError` as a sealed interface with categorized variants.** Each variant maps to a different user notification: `MissingApiKey` → "Configure API key" with a link to settings; `Network` → "Check your connection"; `Timeout` → "Try again"; `HttpError` → status-code-aware message. A single string error message would lose this routing.
-- **No `Cancelled` variant.** Cancellation is handled at the action layer via IntelliJ's `ProcessCanceledException`, which the platform requires we let propagate (never catch). The LLM client itself is decoupled from IntelliJ; it just makes a blocking HTTP call. Cancellation cuts in around it, not through it.
-- **`apiKey: String?` is nullable; the `Authorization` header is set only when the key is non-empty.** Ollama runs locally without authentication — its endpoints reject requests with empty bearer tokens or simply ignore them. By omitting the header entirely when there's no key, the same code path works against authenticating and non-authenticating servers cleanly.
-- **`ChatMessage` doubles as the public API type and the wire DTO.** OpenAI's message shape (`role`, `content`) is the standard across all compatible providers; wrapping it in a separate "DTO" type would be ceremony. If a non-OpenAI-shaped provider matters later, a per-provider mapper is added at that point — not preemptively. The `@Serializable` annotation enables the codec without constraining consumers.
-- **Wire DTOs (`ChatRequest`, `ChatResponse`, `Choice`, `Usage`) are `internal`.** They're an implementation detail of the OpenAI client and shouldn't leak into the rest of the plugin.
-- **`temperature = 0.3`.** Commit messages benefit from determinism — same diff producing the same message — without going to zero (which can produce stiff, repetitive output across runs). 0.3 is the conventional sweet spot for "structured, format-bound generation".
-- **`Json { ignoreUnknownKeys = true; encodeDefaults = false; explicitNulls = false }`.** Forward-compatible with provider extensions (some return non-standard fields), keeps the request body minimal (no `null`/default fields cluttering it).
-- **Connect timeout 10 s, request timeout from settings.** Connect-timeout governs the TCP/TLS handshake only; the request timeout (`HttpRequest.timeout`) covers the full round-trip. Splitting them lets a slow provider fail fast on connect issues while still being patient with a slow generation.
-- **Error sanitization: `LlmError` instances never contain headers, the API key, or full stack traces.** `LlmError.Network(description)` carries only `${exceptionClassName}: ${message}`. `LlmError.HttpError(status, bodySnippet)` truncates the body at 500 chars (provider error responses say things like `"Invalid API key"` — they don't echo the request bearer back). The test suite (Phase 6) explicitly asserts that the API key never appears in any thrown exception's message or stack trace.
-- **`baseUrl` trailing slash is stripped.** `https://api.groq.com/openai/v1/` and `https://api.groq.com/openai/v1` both work without a stray `//chat/completions` URL.
-
-### Prompt design
-
-- **System prompt enforces Conventional Commits and explicitly forbids code fences and prose.** Without these constraints, models routinely return triple-backticked output or "Sure, here's your commit message:". Spelling out the negatives in the system prompt is the cheapest reliability fix.
-- **Subject line: imperative mood, lowercase, no trailing period, ≤72 chars.** Matches the Conventional Commits ecosystem's de-facto style.
-- **Body explains WHY, not WHAT.** The diff IS the "what". Asking the model to restate the diff in prose is wasted tokens and produces weaker reviews.
-- **Branch name passed alongside the diff.** Branch names often hint at scope (`feat/oauth-refresh` → `(auth)`). Free context the model can fold into the type/scope segment.
-- **Truncation marker is in-prompt.** When the diff is over the cap, a `[truncated …]` marker is appended to the body, and the system prompt instructs the model to focus on the visible portion and not speculate. Honest beats clever.
-
-### Threading & UX (IntelliJ-specific)
-
-- **All network in `Task.Backgroundable`, never on the EDT.** Plugin code that blocks the EDT freezes the IDE — the single most common reviewer-fail pattern in IntelliJ plugins.
-- **Result writes back to the EDT via `invokeLater`.** Touching Swing components (the commit message field) from a background thread is undefined behavior.
-- **Notifications, not modal dialogs, for async results.** Modals interrupt the user and queue events on the EDT, defeating the point of going off-thread. The Notifications API is the IntelliJ-native non-blocking surface.
-- **Action `update()` disables itself when `VcsDataKeys.COMMIT_MESSAGE_CONTROL` is null.** Stops the action from showing up in irrelevant menus and from no-op'ing if invoked from a context where there's no commit message field to write into.
-- **No default keyboard shortcut.** Default shortcuts collide with user customizations and project-specific keymaps. Users can bind one in `Settings → Keymap`.
-
-### Diff handling
-
-- **Diff captured from the active changelist via `ChangeListManager`.** Maps closely to `git status` "to-be-committed" set. v1 uses the default changelist's full set of changes — precise per-checkbox capture (via `CommitWorkflowHandler`) is more code, and the default-changelist version is correct for the common case.
-- **Binary files skipped.** Sending non-text bytes to a chat-completion endpoint is meaningless and burns tokens.
-- **Real `git diff`-style hunks via IntelliJ's `IdeaTextPatchBuilder` + `UnifiedDiffWriter`.** Output looks like the diff your terminal shows: `--- a/path` / `+++ b/path` headers, `@@ -X,Y +A,B @@` hunks containing only changed lines plus a few lines of context. Major signal-per-token win — for a 200-line file with a 5-line change, the prompt sees ~10 lines of relevant diff instead of 400 lines of dumped before+after content. Requires `bundledModule("intellij.platform.vcs.impl")` in `build.gradle.kts` to expose those classes on the compile classpath; the dependency is otherwise fully bundled with the IDE so it adds zero runtime weight.
-- **Secret-pattern redaction.** Lines matching common secret regexes (`api_key=`, `password:`, `token:`, `Bearer …`, `client_secret=`, …) are replaced with `***REDACTED***` before the diff goes to the LLM. A best-effort safety net, not a guarantee — users with truly sensitive diffs should review before clicking the action.
-- **Read-action wrapping.** `DiffContextBuilder.build()` runs inside `ReadAction.compute { … }`. `ChangeListManager` accessors and content-revision reads coordinate with IntelliJ's read/write lock — not wrapping risks `ReadAccessNotAllowed` exceptions on certain code paths.
-- **`currentBranch()` returns null in v1.** Reading the active Git branch requires Git4Idea APIs and a `dynamic` plugin dependency that's heavier than the marginal value (the LLM produces good messages from the diff alone). Marked as a future improvement in `CommitMessageService.kt`.
-
-### Build & dependencies
-
-- **`kotlin.stdlib.default.dependency = false`** in `gradle.properties`. IntelliJ ships its own Kotlin stdlib; bundling another causes runtime `ClassLoader` conflicts. The setting is a foot-gun preventer.
-- **Configuration Cache enabled** (`org.gradle.configuration-cache = true`). Faster Gradle invocations during dev. If a task fails with a cache-related error, the right fix is in the task — not disabling the cache project-wide.
-- **`kotlinx-serialization-json:1.7.3`, aligned to Kotlin 2.3.21.** Mismatched versions surface as runtime `NoSuchMethodError`s. The serialization compiler plugin is applied via `kotlin("plugin.serialization") version "2.3.21"` so the version always tracks Kotlin's.
-- **JUnit 4, not JUnit 5.** The IntelliJ test framework expects JUnit 4. Tests under `BasePlatformTestCase` use the `testXxx()` naming convention — backtick-quoted names aren't picked up by that runner. Pure-logic tests (no IDE fixture) can use plain JUnit 4 freely.
-- **`<depends>com.intellij.modules.vcs</depends>`** in `plugin.xml`. Required for `VcsDataKeys` and `ChangeListManager`. Without it, the plugin would still load in IDEs without the VCS module bundled (rare, but possible) and crash at action-invocation time.
-
-## What's deliberately NOT here
-
-These were considered and rejected — listing them so the boundary is explicit.
-
-- **A multi-provider factory with two real implementations.** One interface + one impl is sufficient when the wire format is shared; adding `AnthropicClient`, `GeminiClient`, etc. is preemptive abstraction.
-- **Streaming UI / inline completion / chat panel.** Out of scope. The plugin is one button, one popup, one result.
-- **RAG over the project, embeddings, vector store.** Significantly more complex than the test task warrants. Commit messages don't need full project context — the diff is enough.
-- **Auto-commit / auto-push.** The plugin only writes text into the message field; the user always pulls the trigger.
-- **A "Clear stored key" button.** Setting a new key replaces the old; clearing is rare enough that the system keychain UI is fine. Avoids three-button settings clutter.
-- **Per-language doc generation, regex tools, motivational error messages.** Considered as alternative plugin ideas; rejected as either weaker AI signal (motivational) or off-spec for the test task (multiple smaller features competing for attention).
-- **Custom icon assets.** v1 uses an IntelliJ-bundled `AllIcons` value. Shipping a custom icon is a polish item, not a feature.
-- **Settings-side validation of `baseUrl` / `model`.** The provider returns an actionable error message faster than custom client-side validation can. Letting the round-trip surface a 401 / 404 / "Model not found" error is more honest than guessing what the user meant.
-
-## Development
+JDK 21 required. The Gradle wrapper is checked in.
 
 ```bash
 ./gradlew runIde            # launch a sandbox IDE with the plugin loaded
 ./gradlew test              # unit tests
 ./gradlew check             # tests + verifications
-./gradlew verifyPlugin      # JetBrains Plugin Verifier
-./gradlew buildPlugin       # produce distributable .zip in build/distributions/
+./gradlew verifyPlugin      # JetBrains Plugin Verifier (compatibility check)
+./gradlew buildPlugin       # produce distributable .zip
+./gradlew patchChangelog    # sync CHANGELOG.md "Unreleased" section
 ```
 
-JDK 21 required.
+Run a single test class:
 
-The implementation plan, including phase boundaries and risks, is in [`PLAN.md`](PLAN.md). Repo guidance for future Claude Code sessions is in [`CLAUDE.md`](CLAUDE.md).
+```bash
+./gradlew test --tests "com.github.jelenadjuric01.gitmuse.llm.PromptTest"
+```
+
+CI (`.github/workflows/build.yml`) runs `buildPlugin`, `check`, and `verifyPlugin` on every push to main and on pull requests.
 
 ---
+
+## Design decisions
+
+These are the calls that shaped the plugin and aren't obvious from the code alone.
+
+### Plugin scope
+
+- **A commit-message generator, full stop.** The plugin does one thing well rather than several things adequately. No inline completion, no chat panel, no multi-step refactoring assistant. Keeping the scope tight makes the threading, error handling, and prompt design legible.
+- **The plugin never commits and never fires unprompted.** It only writes text into the commit message field; you always click Commit yourself. No background poller, no on-error trigger, no auto-suggest — a predictable side-effect surface.
+
+### Provider strategy
+
+- **Provider-agnostic via the OpenAI wire format.** OpenAI's `/v1/chat/completions` shape (`messages: [{role, content}]`, `choices[].message.content`, `Authorization: Bearer …`) became the de-facto industry standard. Groq, Ollama, OpenRouter, Together, Mistral, Cerebras, and others all implement it. One client class works against all of them — switch by changing `baseUrl`.
+- **The user picks the model.** Provider catalogs differ: `gpt-4o-mini` is OpenAI, `llama-3.1-8b-instant` is Groq, `llama3.1:8b` is Ollama. Hard-coding any one would constrain users to that provider; pre-setting OpenAI's would also imply a recommendation that bills them. The settings field has helper text listing the three pairings, and this README ships three quick-start configs side by side.
+- **The user supplies the API key.** Plugin authors who ship a key risk leaking it or paying for everyone's traffic. User-supplied keys also let people use providers I haven't heard of without any code changes.
+- **One provider implementation, not a multi-provider factory.** All compatible endpoints share the same wire format; the abstraction lives at the `LlmClient` interface, not in a registry of provider classes. Adding `AnthropicClient`, `GeminiClient`, etc. preemptively would be ceremony — if a non-OpenAI-shaped provider matters later, a second `LlmClient` plus a small per-provider mapper handles it cleanly.
+- **`baseUrl` is configurable, not fixed to OpenAI.** Defaulting to OpenAI would be the only path that costs the user money out of the box; leaving it empty makes the choice deliberate.
+
+### Settings & secrets
+
+- **API key in `PasswordSafe`, never in `PersistentStateComponent`.** PSC serializes to plaintext XML in the IDE config dir. PasswordSafe writes to the OS keychain (macOS Keychain, Windows Credential Manager, libsecret/KWallet on Linux). All key access is funnelled through `GitMuseSecrets` — exactly one class touches the secret store, which makes audit and review trivial.
+- **Application-level service, not project-level.** The API key, base URL, and model are per-user, not per-project. A per-project setup would force re-entering the key in every checkout, and there's nothing project-specific about which LLM you use.
+- **The password field always opens empty.** Pre-filling exposes the stored key visually; pre-filling with dots leaks its length. The chosen UX: type a value to set or replace, leave blank to keep the existing one. A separate "Clear" button was considered and dropped as marginal UX value for more code surface — to clear, just overwrite with a new value, or delete the entry via the system keychain UI.
+- **Default `maxDiffChars` = 12,000; hard cap = 50,000.** 12k characters is roughly 3k tokens — enough context for typical commits (a handful of files, a few hundred lines), short enough to stay cheap on every provider's pricing tier, and well under any model's context window. The 50k hard cap protects against pathological cases (someone accidentally stages a 200k-line CSV) regardless of what the user types in the spinner.
+- **Default `requestTimeoutSeconds` = 30.** Generous enough for slow free-tier providers under load (Groq occasionally takes 10+ seconds during peaks); short enough that a stuck request gets surfaced rather than hanging forever. Covers the entire round-trip, not just the connect step.
+- **The typed password `char[]` is wiped after `apply()`.** Standard hygiene: the value would otherwise sit in heap memory until the next GC, where a heap dump or memory scanner could read it.
+
+### LLM client
+
+- **`LlmError` is a sealed interface — a closed set of failure types** (`MissingApiKey`, `NoChanges`, `Timeout`, `Network`, `HttpError`, `InvalidResponse`). Each one maps to its own user-facing notification: auth failures get a `Configure…` link, network errors say "check your connection", timeouts suggest retry. A single string error message would lose this routing, and the compiler enforces that every variant is handled — no silent gaps.
+- **No `Cancelled` variant.** When the user presses ESC on the progress popup, IntelliJ throws `ProcessCanceledException`, which the platform requires plugins let propagate (never catch). The LLM client itself is decoupled from IntelliJ — it just makes a blocking HTTP call. Cancellation cuts in around it, not through it.
+- **`apiKey` is nullable; the `Authorization` header is set only when the key is non-blank.** Ollama runs locally without authentication. Sending an empty `Bearer` header would either confuse it or cause confusing failures elsewhere. Omitting the header entirely lets the same code path serve authenticating and non-authenticating servers.
+- **`ChatMessage` is both the public API type and the JSON DTO.** OpenAI's message shape (`role`, `content`) is the standard across all compatible providers; wrapping it in a separate "data transfer object" type would be ceremony. If a non-OpenAI-shaped provider matters later, a per-provider mapper is added then — not preemptively.
+- **The remaining wire DTOs (`ChatRequest`, `ChatResponse`, `Choice`, `Usage`) are `internal`.** They're an implementation detail of the OpenAI client and shouldn't leak into the rest of the plugin.
+- **`temperature = 0.3`.** Temperature controls how much randomness the model adds to its output. 0.0 is fully deterministic but tends to produce stiff, repetitive phrasing across runs; 1.0+ gets creative and unreliable. 0.3 is the sweet spot for structured, format-bound output: similar diffs produce similar messages, but the wording doesn't read like a template.
+- **Connect timeout 10 s, request timeout from settings.** Connect-timeout governs the TCP/TLS handshake only; the request timeout covers the full round-trip. Splitting them lets a slow provider fail fast on connect issues while still being patient with a slow generation.
+- **`baseUrl` validation up-front.** Empty, malformed, or non-`http(s)` URLs are caught before any HTTP call is attempted, with a distinct error message for each. The most common case this catches: forgetting the `https://` prefix.
+
+### Diff handling
+
+- **Diff captured from the active changelist via `ChangeListManager`.** Maps closely to `git status`'s "to-be-committed" set. Uses the default changelist's full set of changes — precise per-checkbox capture (via `CommitWorkflowHandler`) is more code, and the default-changelist version is correct for the common case.
+- **Binary files skipped.** Sending non-text bytes to a chat-completion endpoint is meaningless and burns tokens.
+- **Real `git diff`-style hunks via IntelliJ's `IdeaTextPatchBuilder` + `UnifiedDiffWriter`.** Output looks like the diff your terminal shows: `--- a/path` / `+++ b/path` headers, `@@ -X,Y +A,B @@` hunks containing only the changed lines plus a few lines of context. Major signal-per-token win — for a 200-line file with a 5-line change, the prompt sees about 10 lines of relevant diff instead of 400 lines of dumped before+after content. Requires `bundledModule("intellij.platform.vcs.impl")` in `build.gradle.kts` to expose those classes on the compile classpath; they otherwise ship with every IDE so the dependency adds zero runtime weight.
+- **Secret-pattern redaction.** Lines matching common secret regexes (`api_key=`, `password:`, `token:`, `Bearer …`, `client_secret=`, …) are replaced with `***REDACTED***` before the diff goes to the LLM. A best-effort safety net, not a guarantee — users with truly sensitive diffs should review before clicking the action.
+- **Read-action wrapping.** `DiffContextBuilder.build()` runs inside `runReadAction { … }`. IntelliJ uses a global read/write lock to keep the project model consistent — reading file revisions or changelists from a background thread without acquiring it can throw `ReadAccessNotAllowed` partway through. (`runReadAction` is the Kotlin extension; the older `ReadAction.compute(ThrowableComputable)` is deprecated.)
+
+### Prompt design
+
+- **System prompt enforces Conventional Commits and explicitly forbids code fences and prose.** Without those constraints, models routinely return triple-backticked output or "Sure, here's your commit message:". Spelling out the negatives is the cheapest reliability fix.
+- **Explicit unified-diff reading guidance.** The system prompt walks the model through what `--- a/path`, `+++ b/path`, `/dev/null`, `@@`, `+`, and `-` mean, and emphasizes that the diff is the only source of truth. Models trained on lots of code already know this, but stating it explicitly reduces hallucinated changes.
+- **Subject line: imperative mood, lowercase, no trailing period, ≤72 chars.** Matches the Conventional Commits ecosystem's de-facto style.
+- **Body explains WHY, not WHAT.** The diff IS the "what". Asking the model to restate it in prose wastes tokens and produces weaker reviews.
+- **Truncation marker is in-prompt.** When the diff is over the cap, a `[truncated …]` marker is appended and the system prompt tells the model to focus on the visible portion and not speculate. Honest beats clever.
+
+### Threading & UX (IntelliJ-specific)
+
+- **All network in `Task.Backgroundable`, never on the EDT.** The EDT (Event Dispatch Thread) is the single thread that paints every pixel of the IDE; blocking it freezes everything. Anything slower than a few milliseconds — definitely an LLM round-trip — has to run elsewhere.
+- **The result writes back to the EDT via `invokeLater`.** Touching Swing components (the commit message field) from a background thread is undefined behavior, so the result hops back to the EDT for the actual write.
+- **Notifications, not modal dialogs, for async results.** Modals interrupt whatever the user is doing and queue events on the EDT — exactly the thing we went off-thread to avoid.
+- **Action `update()` disables itself when `VcsDataKeys.COMMIT_MESSAGE_CONTROL` is null.** Stops the action from showing up in irrelevant menus and from no-op'ing if invoked where there's no commit message field to write into.
+- **Defensive try/catch around `service.generate()` in the action.** `ProcessCanceledException` is rethrown unchanged (platform contract); anything else becomes a clean notification instead of a stack trace in the IDE log.
+- **No default keyboard shortcut.** Default shortcuts collide with user customizations and project-specific keymaps. Users can bind one themselves in `Settings → Keymap`.
+
+### Build & dependencies
+
+- **`kotlin.stdlib.default.dependency = false`** in `gradle.properties`. IntelliJ ships its own Kotlin stdlib; bundling another causes runtime `ClassLoader` conflicts that only show up at plugin load time.
+- **Configuration Cache enabled** (`org.gradle.configuration-cache = true`). Gradle reuses the configured task graph between invocations, which makes incremental dev cycles noticeably faster. Costs nothing if every task in the build is cache-compatible (they are here).
+
+## Possible improvements
+
+A list of features worth picking up if the plugin grows beyond v1. None are load-bearing for the current behavior.
+
+- **Read the actually-checked changes in the Commit dialog.** v1 sends the full default-changelist diff. The Commit dialog also tracks per-file checkboxes that let the user partially stage; capturing those (via `CommitWorkflowHandler`) would generate a message that matches what gets committed, not what's in the working tree.
+- **Branch name as scope hint.** Branch names like `feat/auth-refresh` or `fix/login-redirect-loop` are free context the model could fold into the `<scope>` segment of the header. Plumbing this in cleanly requires a `dynamic` dependency on Git4Idea (so the plugin still loads in IDEs without Git support) and a small reflective lookup. Marginal accuracy win, cheap once wired.
+- **Tone / style options.** A "Tone" setting (`Neutral` / `Concise` / `Detailed` / `Casual`) that injects an extra clause into the system prompt. Three lines in the settings UI, one paragraph of prompt change, no architectural impact.
+- **Match the project's existing commit style.** Read the last N commits from the project's history and prepend them to the user message as "examples of this project's style". Lets the model match house conventions for scope vocabulary, message length, and type usage. Costs more tokens — should probably be opt-in.
+- **Streaming responses.** Show the message as it's generated rather than waiting for the full response. Better perceived latency. Means switching from `HttpClient.send` to `HttpClient.sendAsync` with a server-sent-events body handler and adjusting the EDT-hop pattern.
+- **Cache by diff hash.** If the user clicks the button twice without changing anything, return the previous result. Saves tokens; needs a small in-memory `Map<String, GenerationResult>` keyed by SHA-256 of the diff.
+- **Real `BasePlatformTestCase` integration test for `DiffContextBuilder`.** Current tests cover pure logic (the redaction regex). A platform-fixture test that seeds an in-memory project with changes and asserts the rendered diff shape would catch IntelliJ-API regressions before users hit them.
+- **Internationalization.** All user-facing strings are currently hard-coded English. `GitMuseBundle` is wired up but empty. Moving the notification messages, settings labels, and action text into the bundle would let the plugin localize cleanly.
+- **Plugin Verifier in CI against multiple IDE versions.** Current CI runs `verifyPlugin` against the bundled IDE only. Configuring the verifier to test against the last three IDEA releases would catch breakage from upcoming platform deprecations earlier.
+
+---
+
 Plugin scaffolded from the [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template).

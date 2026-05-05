@@ -23,10 +23,20 @@
             instance="com.github.jelenadjuric01.gitmuse.settings.GitMuseSettingsConfigurable"/>
         <projectService
             serviceImplementation="com.github.jelenadjuric01.gitmuse.service.CommitMessageService"/>
-        <!-- Phase 5: notificationGroup -->
+        <notificationGroup
+            id="Git Muse"
+            displayType="BALLOON"
+            isLogByDefault="false"/>
     </extensions>
 
     <actions>
-        <!-- Action added in Phase 5 -->
+        <action
+            id="com.github.jelenadjuric01.gitmuse.GenerateCommitMessage"
+            class="com.github.jelenadjuric01.gitmuse.action.GenerateCommitMessageAction"
+            text="Generate AI Commit Message"
+            description="Generate a Conventional Commits message from the staged diff using an LLM"
+            icon="AllIcons.Actions.Lightning">
+            <add-to-group group-id="Vcs.MessageActionGroup" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>

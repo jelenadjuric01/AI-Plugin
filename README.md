@@ -43,7 +43,7 @@ The implementation is phased — each phase ends at a green build and a clean co
 | 2 | Settings page, persisted state, PasswordSafe-backed API key | done |
 | 3 | LLM client, prompt builder, error model | done |
 | 4 | Diff context builder, commit-message orchestration service | done |
-| 5 | VCS toolbar action, notification group, plugin.xml wiring | planned |
+| 5 | VCS toolbar action, notification group, plugin.xml wiring | done |
 | 6 | Tests + final polish (verifyPlugin, README screenshots) | planned |
 
 ---

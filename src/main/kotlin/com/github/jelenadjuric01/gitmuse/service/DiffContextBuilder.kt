@@ -1,7 +1,7 @@
 package com.github.jelenadjuric01.gitmuse.service
 
 import com.github.jelenadjuric01.gitmuse.settings.GitMuseSettings
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.diff.impl.patch.IdeaTextPatchBuilder
 import com.intellij.openapi.diff.impl.patch.UnifiedDiffWriter
 import com.intellij.openapi.project.Project
@@ -29,11 +29,11 @@ import java.nio.file.Path
  */
 class DiffContextBuilder(private val project: Project) {
 
-    fun build(maxChars: Int): DiffContext = ReadAction.compute<DiffContext, RuntimeException> {
+    fun build(maxChars: Int): DiffContext = runReadAction {
         val cap = maxChars.coerceAtMost(GitMuseSettings.MAX_DIFF_CHARS_HARD_CAP)
         val changes = ChangeListManager.getInstance(project).defaultChangeList.changes
             .filterNot { isBinary(it) }
-        if (changes.isEmpty()) return@compute DiffContext.Empty
+        if (changes.isEmpty()) return@runReadAction DiffContext.Empty
 
         val basePath = Path.of(project.basePath ?: ".")
         val patches = IdeaTextPatchBuilder.buildPatch(
@@ -43,12 +43,12 @@ class DiffContextBuilder(private val project: Project) {
             /* reverseAll = */ false,
             /* honorExcludedFromCommit = */ false,
         )
-        if (patches.isEmpty()) return@compute DiffContext.Empty
+        if (patches.isEmpty()) return@runReadAction DiffContext.Empty
 
         val writer = StringWriter()
         UnifiedDiffWriter.write(project, patches, writer, "\n", /* commitContext = */ null)
         val rawDiff = writer.toString()
-        if (rawDiff.isBlank()) return@compute DiffContext.Empty
+        if (rawDiff.isBlank()) return@runReadAction DiffContext.Empty
 
         val redacted = redactSecrets(rawDiff)
         val truncated = redacted.length > cap

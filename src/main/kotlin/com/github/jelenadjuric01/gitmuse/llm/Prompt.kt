@@ -3,8 +3,8 @@ package com.github.jelenadjuric01.gitmuse.llm
 /**
  * Builds the chat-completion messages sent to the LLM.
  *
- * The system prompt is the single point where we constrain output format. Keep it tight —
- * every clause is one the model could otherwise drift on.
+ * The system prompt is the single point where we constrain output format.
+ * Every clause is one the model could otherwise drift on.
  */
 object Prompt {
 

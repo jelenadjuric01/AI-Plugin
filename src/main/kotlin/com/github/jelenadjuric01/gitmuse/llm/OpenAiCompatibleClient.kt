@@ -14,8 +14,7 @@ import java.time.Duration
  * [LlmClient] that speaks the OpenAI `/v1/chat/completions` wire format.
  *
  * Works with any provider that copies the same shape — OpenAI, Groq, Ollama, OpenRouter,
- * Together, etc. Uses the JDK 21 `HttpClient` so we don't pull in OkHttp (which would
- * conflict with the version IntelliJ bundles).
+ * Together, etc. Uses the JDK 21 `HttpClient`.
  *
  * The class is plain — no IntelliJ services touched, no settings looked up. Tests pass
  * a stub `HttpClient` via the constructor.

@@ -24,7 +24,7 @@ import java.time.Duration
 class CommitMessageService(private val project: Project) {
 
     /**
-     * Full pipeline. Must be called from a background thread (typically a `Task.Backgroundable`).
+     * Full pipeline. Must be called from a background thread.
      */
     fun generate(): Result<GenerationResult> {
         val state = GitMuseSettings.getInstance().state

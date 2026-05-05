@@ -31,10 +31,10 @@ The same actions are pre-wired as IntelliJ run configurations under `.run/` (`Ru
 ## Tech Stack Pinning
 
 Versions live in `settings.gradle.kts` and `build.gradle.kts` and matter:
-- Kotlin **2.1.20** (JVM) — both the language plugin and `kotlin.plugin.serialization`.
+- Kotlin **2.3.21** (JVM) — both the language plugin and `kotlin.plugin.serialization`.
 - IntelliJ Platform plugin **2.16.0** targeting **IntelliJ IDEA 2025.2.6.2**.
 - JUnit **4.13.2** (not JUnit 5 — the IntelliJ test framework expects JUnit 4).
-- `kotlinx-serialization-json` **1.7.3** (must align with Kotlin 2.1.20).
+- `kotlinx-serialization-json` **1.7.3** (must align with Kotlin 2.3.21).
 - `org.jetbrains.changelog` 2.5.0.
 
 ## Non-Obvious Configuration

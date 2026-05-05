@@ -27,7 +27,7 @@ Settings page lets the user configure: API key (PasswordSafe), base URL (default
 | # | Risk | Severity | Mitigation |
 |---|------|----------|------------|
 | R1 | Long diffs blow past the model's context window or rack up cost | **HIGH** | `DiffContextBuilder` truncates per-file and overall to `maxDiffChars`; appends a `[truncated N files]` marker. Hard cap independent of user setting (`50_000`). |
-| R2 | `kotlinx-serialization-json` runtime conflict with the platform's bundled JSON or Kotlin stdlib | **HIGH** | Pin to a version aligned with Kotlin 2.1.20 (`1.7.3`); rely on `kotlin.stdlib.default.dependency=false` in `gradle.properties` (already set); do NOT add the serialization Gradle plugin globally — apply only via `plugins { kotlin("plugin.serialization") version "2.1.20" }`. Verify with `./gradlew verifyPlugin`. |
+| R2 | `kotlinx-serialization-json` runtime conflict with the platform's bundled JSON or Kotlin stdlib | **HIGH** | Pin to a version aligned with Kotlin 2.3.21 (`1.7.3`); rely on `kotlin.stdlib.default.dependency=false` in `gradle.properties` (already set); do NOT add the serialization Gradle plugin globally — apply only via `plugins { kotlin("plugin.serialization") version "2.3.21" }`. Verify with `./gradlew verifyPlugin`. |
 | R3 | OkHttp version conflict with IntelliJ's bundled OkHttp | **HIGH** | Don't bundle OkHttp. Use the JDK-native `java.net.http.HttpClient` (JDK 21) — zero new transitive deps, no shading needed. (Replaces the OkHttp suggestion in the brief; cleaner trade-off.) Note in the plan as a deliberate deviation from the brief. |
 | R4 | LLM call on EDT freezes the IDE | **HIGH** | All network in `Task.Backgroundable`; `ProgressManager.checkCanceled()` between steps; UI write back uses `ApplicationManager.getApplication().invokeLater { ... }` on EDT. |
 | R5 | API key leaks in logs / exception messages | **HIGH** | `OpenAiClient` never includes the `Authorization` header in any thrown/logged exception. `LlmError` is a sealed type carrying only category + sanitized message. |
@@ -59,7 +59,7 @@ Delete dead template code and add the libraries we'll need.
    - Replace `<description>` with one accurate paragraph about the AI commit message generator.
    - Add `<depends>com.intellij.modules.vcs</depends>` (for VCS data keys + `ChangeListManager`).
 3. **Edit `build.gradle.kts`**
-   - Add `kotlin("plugin.serialization") version "2.1.20"` to `plugins { ... }`.
+   - Add `kotlin("plugin.serialization") version "2.3.21"` to `plugins { ... }`.
    - Add `implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")`.
    - **Do NOT add OkHttp** — using JDK 21's `java.net.http.HttpClient`.
    - **Do NOT add `kotlinx-coroutines-core`** — IntelliJ Platform 2025.2 bundles it; explicit add risks `NoSuchMethodError` from version skew. We only use `Task.Backgroundable`, no coroutines, so this is moot anyway.
@@ -153,7 +153,7 @@ See section 5 for the per-class test plan. Polish:
 
 Add to `plugins { ... }`:
 ```
-kotlin("plugin.serialization") version "2.1.20"
+kotlin("plugin.serialization") version "2.3.21"
 ```
 
 Add to `dependencies { ... }`:

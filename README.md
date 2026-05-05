@@ -116,7 +116,7 @@ Every meaningful trade-off is recorded here so the choices are auditable. Where 
 
 - **`kotlin.stdlib.default.dependency = false`** in `gradle.properties`. IntelliJ ships its own Kotlin stdlib; bundling another causes runtime `ClassLoader` conflicts. The setting is a foot-gun preventer.
 - **Configuration Cache enabled** (`org.gradle.configuration-cache = true`). Faster Gradle invocations during dev. If a task fails with a cache-related error, the right fix is in the task — not disabling the cache project-wide.
-- **`kotlinx-serialization-json:1.7.3`, aligned to Kotlin 2.1.20.** Mismatched versions surface as runtime `NoSuchMethodError`s. The serialization compiler plugin is applied via `kotlin("plugin.serialization") version "2.1.20"` so the version always tracks Kotlin's.
+- **`kotlinx-serialization-json:1.7.3`, aligned to Kotlin 2.3.21.** Mismatched versions surface as runtime `NoSuchMethodError`s. The serialization compiler plugin is applied via `kotlin("plugin.serialization") version "2.3.21"` so the version always tracks Kotlin's.
 - **JUnit 4, not JUnit 5.** The IntelliJ test framework expects JUnit 4. Tests under `BasePlatformTestCase` use the `testXxx()` naming convention — backtick-quoted names aren't picked up by that runner. Pure-logic tests (no IDE fixture) can use plain JUnit 4 freely.
 - **`<depends>com.intellij.modules.vcs</depends>`** in `plugin.xml`. Required for `VcsDataKeys` and `ChangeListManager`. Without it, the plugin would still load in IDEs without the VCS module bundled (rare, but possible) and crash at action-invocation time.
 

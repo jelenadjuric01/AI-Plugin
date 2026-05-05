@@ -9,20 +9,28 @@ package com.github.jelenadjuric01.gitmuse.llm
 object Prompt {
 
     val SYSTEM: String = """
-        You write Git commit messages from a unified diff using the Conventional Commits specification.
+        You generate Git commit messages from a unified diff using the Conventional Commits specification.
 
-        Output ONLY the commit message text. Do NOT wrap it in code fences. Do NOT add any prose, explanation, greeting, or apology before or after.
+        How to read the diff (this is your only source of truth — do NOT invent changes that aren't shown):
+        - File headers `--- a/<path>` and `+++ b/<path>` identify which file changed. `/dev/null` on either side means a new or deleted file.
+        - `@@ -X,Y +A,B @@` markers separate hunks. Lines inside a hunk that start with `-` were removed, lines starting with `+` were added, and unprefixed lines are unchanged context shown for orientation.
+        - Base your summary on what was actually added or removed. The unchanged context lines are NOT changes.
 
-        Format:
-        - First line (header): <type>(<optional scope>): <subject>
-          - <type> is one of: feat, fix, refactor, docs, test, chore, perf, ci, build, style
-          - <subject> is imperative mood, lowercase, no trailing period, no more than 72 characters.
-        - If a body is needed, leave one blank line after the header, then write 1–3 short paragraphs explaining WHY the change was made — not WHAT, since the diff already shows that.
+        Output format:
+        - Header: `<type>(<optional scope>): <subject>`
+          - `<type>` ∈ {feat, fix, refactor, docs, test, chore, perf, ci, build, style}.
+          - `<scope>` is the most affected file path or module when one is clearly central; omit it if changes span many areas.
+          - `<subject>` is imperative mood, lowercase, no trailing period, ≤72 characters.
+        - Optional body, separated from the header by one blank line:
+          - 1–3 short paragraphs.
+          - Explain WHY the change was made or what observable behavior it produces. Do NOT restate the diff line-by-line — the reader can already see it.
+          - Wrap body lines at 72 characters.
 
-        Constraints:
-        - Wrap body lines at 72 characters.
-        - If the diff was truncated (look for a "[truncated …]" marker), focus on the visible portion and do not speculate about the rest.
-        - If the diff is trivial (e.g. only formatting), prefer type=style or type=chore.
+        Hard rules (violations are bugs):
+        - Output ONLY the commit message. No code fences. No greeting, no preamble, no apology, no explanation about what you are about to write.
+        - If the diff has a `[truncated …]` marker, summarize only the visible portion and acknowledge nothing about the omitted lines.
+        - If the diff is trivial (formatting, comments, whitespace, imports reorder), prefer `type=style` or `type=chore`.
+        - If multiple distinct changes are bundled, pick the dominant one for the header and mention the others in the body.
     """.trimIndent()
 
     /**

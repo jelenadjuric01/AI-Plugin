@@ -74,9 +74,9 @@ action/           AnAction registered into Vcs.MessageActionGroup (Commit dialog
 llm/              LlmClient interface + OpenAiCompatibleClient impl, Prompt, GenerationResult, sealed LlmError
 service/          CommitMessageService (@Service(PROJECT)) — orchestrates prompt → LLM call → return
                   DiffContextBuilder — ChangeListManager → unified diff, truncate, redact secrets
-settings/         AiPluginSettings (@State PSC: model, baseUrl, maxDiffChars, requestTimeoutSeconds)
-                  AiPluginSecrets — sole PasswordSafe wrapper for the API key
-                  AiPluginSettingsConfigurable + AiPluginSettingsComponent
+settings/         GitMuseSettings (@State PSC: model, baseUrl, maxDiffChars, requestTimeoutSeconds)
+                  GitMuseSecrets — sole PasswordSafe wrapper for the API key
+                  GitMuseSettingsConfigurable + GitMuseSettingsComponent
 notification/     Notifier — wraps NotificationGroupManager
 GitMuseBundle.kt  i18n bundle accessor (currently empty; keys added as the UI grows)
 ```

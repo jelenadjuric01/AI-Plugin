@@ -14,7 +14,14 @@
     <resource-bundle>messages.GitMuseBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- Extensions added in later phases: applicationService, applicationConfigurable, projectService, notificationGroup -->
+        <applicationService
+            serviceImplementation="com.github.jelenadjuric01.gitmuse.settings.GitMuseSettings"/>
+        <applicationConfigurable
+            parentId="tools"
+            id="com.github.jelenadjuric01.gitmuse.settings"
+            displayName="Git Muse"
+            instance="com.github.jelenadjuric01.gitmuse.settings.GitMuseSettingsConfigurable"/>
+        <!-- Phase 4-5: projectService for CommitMessageService, notificationGroup -->
     </extensions>
 
     <actions>

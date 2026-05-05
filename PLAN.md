@@ -73,11 +73,11 @@ Delete dead template code and add the libraries we'll need.
 Plugin needs configurable model/baseUrl/maxDiffChars (PSC) and a securely-stored API key (PasswordSafe). Sequenced before the LLM client so the client can read settings via DI.
 
 Files:
-- `src/main/kotlin/com/github/jelenadjuric01/gitmuse/settings/AiPluginSettings.kt` — `@State(name = "AiPluginSettings", storages = [Storage("AiPluginSettings.xml")])` `@Service(Service.Level.PROJECT)`-or-application-level `PersistentStateComponent<State>`. Decision: **application-level** (`Service.Level.APP`) — API key/model are user-machine-wide, not per-project. State `data class` is immutable; `loadState`/`getState` use `XmlSerializerUtil.copyBean`. Fields: `model`, `baseUrl`, `maxDiffChars`, `requestTimeoutSeconds`. **No key field.**
-- `src/main/kotlin/com/github/jelenadjuric01/gitmuse/settings/AiPluginSecrets.kt` — thin object wrapping `PasswordSafe.instance` with one `CredentialAttributes` keyed by `"com.github.jelenadjuric01.gitmuse.OPENAI_API_KEY"`. Methods `getApiKey(): String?`, `setApiKey(value: String?)`, `clear()`. Never logs the value.
-- `src/main/kotlin/com/github/jelenadjuric01/gitmuse/settings/AiPluginSettingsComponent.kt` — pure Swing/`FormBuilder` panel with `JBTextField` (model, baseUrl), `JBPasswordField` (API key), `JBIntSpinner` (maxDiffChars). Helper label under the model field: `e.g. llama-3.1-8b-instant (Groq), llama3.1:8b (Ollama), gpt-4o-mini (OpenAI)`. No business logic.
-- `src/main/kotlin/com/github/jelenadjuric01/gitmuse/settings/AiPluginSettingsConfigurable.kt` — implements `Configurable`. `apply()` writes plain fields to `AiPluginSettings` and the password to `AiPluginSecrets`. `reset()` reads from both. `isModified()` compares both. `getDisplayName()` = "Git Muse".
-- Register in `plugin.xml` under `<extensions>`: `<applicationConfigurable parentId="tools" instance="...AiPluginSettingsConfigurable" id="aiplugin.settings" displayName="Git Muse"/>` and `<applicationService serviceImplementation="...AiPluginSettings"/>`.
+- `src/main/kotlin/com/github/jelenadjuric01/gitmuse/settings/GitMuseSettings.kt` — `@State(name = "GitMuseSettings", storages = [Storage("GitMuseSettings.xml")])` `@Service(Service.Level.PROJECT)`-or-application-level `PersistentStateComponent<State>`. Decision: **application-level** (`Service.Level.APP`) — API key/model are user-machine-wide, not per-project. State `data class` is immutable; `loadState`/`getState` use `XmlSerializerUtil.copyBean`. Fields: `model`, `baseUrl`, `maxDiffChars`, `requestTimeoutSeconds`. **No key field.**
+- `src/main/kotlin/com/github/jelenadjuric01/gitmuse/settings/GitMuseSecrets.kt` — thin object wrapping `PasswordSafe.instance` with one `CredentialAttributes` keyed by `"com.github.jelenadjuric01.gitmuse.OPENAI_API_KEY"`. Methods `getApiKey(): String?`, `setApiKey(value: String?)`, `clear()`. Never logs the value.
+- `src/main/kotlin/com/github/jelenadjuric01/gitmuse/settings/GitMuseSettingsComponent.kt` — pure Swing/`FormBuilder` panel with `JBTextField` (model, baseUrl), `JBPasswordField` (API key), `JBIntSpinner` (maxDiffChars). Helper label under the model field: `e.g. llama-3.1-8b-instant (Groq), llama3.1:8b (Ollama), gpt-4o-mini (OpenAI)`. No business logic.
+- `src/main/kotlin/com/github/jelenadjuric01/gitmuse/settings/GitMuseSettingsConfigurable.kt` — implements `Configurable`. `apply()` writes plain fields to `GitMuseSettings` and the password to `GitMuseSecrets`. `reset()` reads from both. `isModified()` compares both. `getDisplayName()` = "Git Muse".
+- Register in `plugin.xml` under `<extensions>`: `<applicationConfigurable parentId="tools" instance="...GitMuseSettingsConfigurable" id="aiplugin.settings" displayName="Git Muse"/>` and `<applicationService serviceImplementation="...GitMuseSettings"/>`.
 
 **Verify:** `runIde` → Settings → Tools → "Git Muse" — values persist across sandbox restarts; password is stored in PasswordSafe and not in the XML state file.
 
@@ -123,7 +123,7 @@ Files:
   - `update(e)`: enable iff `e.project != null && e.getData(VcsDataKeys.COMMIT_MESSAGE_CONTROL) != null`. Set icon to `AllIcons.Actions.Lightning` (or similar built-in — never bundle a custom icon for v1).
   - `actionPerformed(e)`:
     1. `val control = e.getData(VcsDataKeys.COMMIT_MESSAGE_CONTROL) as? CommitMessage ?: return`.
-    2. If API key missing → `Notifier.error` with a "Configure..." action that opens settings via `ShowSettingsUtil.getInstance().showSettingsDialog(project, AiPluginSettingsConfigurable::class.java)`.
+    2. If API key missing → `Notifier.error` with a "Configure..." action that opens settings via `ShowSettingsUtil.getInstance().showSettingsDialog(project, GitMuseSettingsConfigurable::class.java)`.
     3. Run `Task.Backgroundable(project, "Generating commit message", true)` whose `run(indicator)` calls `service.generate()`. On success, `invokeLater` on EDT to `control.setCommitMessage(result.message)`. On failure, map `LlmError` → notification message (no key/header content).
   - `getActionUpdateThread() = ActionUpdateThread.BGT` (2025.2 requires explicit choice).
 - **`plugin.xml`** additions:

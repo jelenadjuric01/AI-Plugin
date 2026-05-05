@@ -21,20 +21,35 @@ import java.time.Duration
  * a stub `HttpClient` via the constructor.
  */
 class OpenAiCompatibleClient(
-    baseUrl: String,
+    private val baseUrl: String,
     private val model: String,
     private val apiKey: String?,
     private val requestTimeout: Duration,
     private val httpClient: HttpClient = defaultHttpClient(requestTimeout),
 ) : LlmClient {
 
-    private val endpoint: URI? = baseUrl.trim().trimEnd('/')
-        .takeIf { it.isNotEmpty() }
-        ?.let { runCatching { URI.create("$it/chat/completions") }.getOrNull() }
-
     override fun generate(messages: List<ChatMessage>): Result<GenerationResult> {
-        val uri = endpoint
-            ?: return failure(LlmError.InvalidResponse("Base URL is not configured."))
+        val trimmed = baseUrl.trim().trimEnd('/')
+        if (trimmed.isEmpty()) {
+            return failure(
+                LlmError.InvalidResponse(
+                    "Base URL is not configured. Open Settings → Tools → Git Muse."
+                )
+            )
+        }
+        val uri = runCatching { URI.create("$trimmed/chat/completions") }.getOrNull()
+            ?: return failure(
+                LlmError.InvalidResponse(
+                    "Base URL is not a valid URI. Check Settings → Tools → Git Muse."
+                )
+            )
+        if (uri.scheme != "http" && uri.scheme != "https") {
+            return failure(
+                LlmError.InvalidResponse(
+                    "Base URL must start with http:// or https://. Check Settings → Tools → Git Muse."
+                )
+            )
+        }
 
         val body = json.encodeToString(
             ChatRequest.serializer(),

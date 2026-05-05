@@ -189,6 +189,29 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    fun `baseUrl without scheme yields InvalidResponse without making any HTTP call`() {
+        // Regression: typing "api.groq.com/v1" instead of "https://api.groq.com/v1".
+        // URI.create() accepts the schemeless string but HttpRequest.newBuilder() rejects it.
+        val client = OpenAiCompatibleClient("api.groq.com/v1", "m", "k", Duration.ofSeconds(5))
+        val result = client.generate(listOf(ChatMessage("user", "hi")))
+
+        val error = (result.exceptionOrNull() as LlmException).error
+        assertTrue("should be InvalidResponse, was $error", error is LlmError.InvalidResponse)
+        val detail = (error as LlmError.InvalidResponse).detail.lowercase()
+        assertTrue("error should mention scheme: $detail",
+            detail.contains("http://") || detail.contains("scheme"))
+    }
+
+    @Test
+    fun `baseUrl with bogus scheme yields InvalidResponse`() {
+        val client = OpenAiCompatibleClient("ftp://example.com/v1", "m", "k", Duration.ofSeconds(5))
+        val result = client.generate(listOf(ChatMessage("user", "hi")))
+
+        val error = (result.exceptionOrNull() as LlmException).error
+        assertTrue(error is LlmError.InvalidResponse)
+    }
+
+    @Test
     fun `empty baseUrl yields InvalidResponse without making any HTTP call`() {
         // Note: no stub registered — if the client tried to make a call, the server would 404.
         val result = OpenAiCompatibleClient("", "m", "sk-x", Duration.ofSeconds(5))

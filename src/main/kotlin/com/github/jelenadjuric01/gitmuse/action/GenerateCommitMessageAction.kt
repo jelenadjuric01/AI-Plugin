@@ -9,6 +9,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -43,7 +44,23 @@ class GenerateCommitMessageAction : AnAction() {
         val task = object : Task.Backgroundable(project, "Generating commit message", true) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
-                val result = service.generate()
+                val result: Result<com.github.jelenadjuric01.gitmuse.llm.GenerationResult> = try {
+                    service.generate()
+                } catch (e: ProcessCanceledException) {
+                    // Platform contract: never swallow this — let it propagate.
+                    throw e
+                } catch (e: Throwable) {
+                    // Defensive backstop: any unexpected throwable becomes a clean notification
+                    // instead of an ugly stack trace in the IDE log.
+                    Result.failure(
+                        LlmException(
+                            LlmError.InvalidResponse(
+                                "Unexpected error: ${e.javaClass.simpleName}" +
+                                    (e.message?.let { ": $it" } ?: "")
+                            )
+                        )
+                    )
+                }
                 indicator.checkCanceled()
                 result.fold(
                     onSuccess = { generation ->

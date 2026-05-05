@@ -4,6 +4,8 @@
 
 An IntelliJ plugin that generates [Conventional Commits](https://www.conventionalcommits.org/) messages from your staged diff using an LLM.
 
+JetBrains IDEs already ship a similar feature as part of AI Assistant — so why build this? Because I really like that feature and wanted to dive into it myself: see how I would implement it, what the IntelliJ Platform actually exposes for a plugin like this, and what challenges show up along the way (threading rules, secret storage, diff capture, prompt shaping, provider neutrality). GitMuse is as much a learning exercise as it is a working plugin — the result of trying to build the thing I admired and understanding it end-to-end.
+
 GitMuse adds a button to the IDE's Commit dialog. Click it, and a clear, format-correct commit message appears in the message field — for you to review, edit, and commit yourself. The plugin never commits for you, never fires unprompted, and never blocks the IDE while it waits for the model.
 
 It's provider-agnostic: any endpoint that speaks the OpenAI `/v1/chat/completions` wire format works. That covers OpenAI, Groq's free tier, a local Ollama server, OpenRouter, Together, and most others. You bring the `baseUrl`, `model`, and (where required) the API key.
